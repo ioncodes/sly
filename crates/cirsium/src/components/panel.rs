@@ -197,12 +197,11 @@ impl RenderOnce for Panel {
 
         left = left.child(
             div()
-                .min_w(px(0.))
+                .flex_none()
                 .text_xs()
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(t.text_secondary)
                 .whitespace_nowrap()
-                .truncate()
                 .child(self.title.to_uppercase()),
         );
 
