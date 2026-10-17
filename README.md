@@ -104,7 +104,7 @@ Color means playable or work-in-progress. Click on a logo to see the respective 
 How you load games depends on the frontend:
 
 * **Sly Launcher**: add your ROM folders in settings, or pass a folder on the command line.
-* **Sly Classic**: put your ROMs in `roms/{system}/` in the working directory.
+* **Sly Classic**: put your ROMs in `roms/{system}/` in the working directory, meaning the same directory that `sly-classic.exe` is in. For example, if your `.exe` file is `Sly/bin/sly-classic.exe`, then your game files should be `Sly/bin/roms/SNES/game.smc`
 * **iOS**: copy games into Sly's `roms/{system}/` folders using the Files app.
 * **Sly Debugger**: pass the ROM path on the command line, or drag it into the window.
 
