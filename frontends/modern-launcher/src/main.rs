@@ -4,6 +4,7 @@ mod artwork_cache;
 mod color;
 mod file_browser;
 mod fonts;
+mod icons;
 mod input;
 mod library;
 mod materials;
@@ -15,7 +16,6 @@ mod session;
 mod settings;
 mod sound;
 mod ui;
-mod validation;
 mod worker;
 
 use std::path::PathBuf;
@@ -43,9 +43,6 @@ struct Cli {
     roms: Vec<PathBuf>,
     #[arg(long)]
     settings: Option<PathBuf>,
-    /// Write offscreen QA captures to this directory.
-    #[arg(long)]
-    capture: Option<PathBuf>,
     #[arg(long, default_value_t = 1280)]
     width: u32,
     #[arg(long, default_value_t = 720)]
@@ -74,12 +71,7 @@ fn main() -> Result<()> {
         .clone()
         .unwrap_or_else(::settings::default_path);
 
-    let mut settings = if cli.capture.is_some() && cli.settings.is_none() {
-        Ok(Settings::default())
-    } else {
-        Settings::load(&path)
-    }
-    .context("Cannot read launcher settings")?;
+    let mut settings = Settings::load(&path).context("Cannot read launcher settings")?;
 
     if !cli.roms.is_empty() {
         settings.rom_directories = cli.roms;
@@ -87,16 +79,6 @@ fn main() -> Result<()> {
 
     if cli.mute {
         settings.volume = 0.0;
-    }
-
-    if let Some(output) = cli.capture {
-        // Keep QA away from the user's saves and settings.
-        std::fs::create_dir_all(&output)?;
-        ::settings::initialize(Some(&output.join("qa-settings.toml")))
-            .map_err(anyhow::Error::msg)?;
-        settings.data_directory = Some(output.join("session-data"));
-        settings.volume = 0.0;
-        return validation::capture(settings, output, [cli.width, cli.height]);
     }
 
     let app = App::new(settings, path)?;

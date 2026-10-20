@@ -119,18 +119,6 @@ pub struct ArtworkCompletion {
     pub result: Result<(), String>,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct CacheStats {
-    pub cpu_bytes: usize,
-    pub budget_bytes: usize,
-    pub cached_items: usize,
-    pub queued: usize,
-    pub active: usize,
-    pub completed: usize,
-    pub pending: usize,
-    pub stale_discarded: u64,
-}
-
 struct Request {
     generation: u64,
     key: ArtworkKey,
@@ -392,21 +380,6 @@ impl ArtworkCache {
 
     pub fn has_pending(&self) -> bool {
         !self.pending.is_empty()
-    }
-
-    pub fn stats(&self) -> CacheStats {
-        let mailbox = lock(&self.mailbox.0);
-
-        CacheStats {
-            cpu_bytes: self.bytes,
-            budget_bytes: self.budget,
-            cached_items: self.resident.len(),
-            queued: mailbox.requests.len(),
-            active: mailbox.active,
-            completed: mailbox.completed.len(),
-            pending: self.pending.len(),
-            stale_discarded: mailbox.stale_discarded,
-        }
     }
 }
 

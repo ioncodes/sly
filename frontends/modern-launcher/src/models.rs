@@ -4,8 +4,7 @@ use core_model::{Region, System};
 use glam::{Mat3, Mat4, Vec3};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ModelKind {
     WesternBox,
     JapaneseBoxProxy,
@@ -25,15 +24,7 @@ impl ModelKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ModelDetail {
-    Low,
-    High,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MaterialSlot {
     BoxFront,
     BoxBack,
@@ -61,8 +52,6 @@ pub struct Primitive {
     pub slot: MaterialSlot,
     pub color: [f32; 4],
     pub roughness: f32,
-    pub metallic: f32,
-    pub double_sided: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -75,10 +64,6 @@ impl Bounds {
     pub fn size(self) -> Vec3 {
         self.max - self.min
     }
-
-    pub fn center(self) -> Vec3 {
-        (self.min + self.max) * 0.5
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -87,94 +72,27 @@ pub struct Model {
     pub bounds: Bounds,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct MaterialDiagnostic {
-    pub slot: MaterialSlot,
-    pub roughness: f32,
-    pub metallic: f32,
-    pub double_sided: bool,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct ModelDiagnostics {
-    pub kind: ModelKind,
-    pub detail: ModelDetail,
-    pub available_details: Vec<ModelDetail>,
-    pub triangles: usize,
-    pub vertex_bytes: usize,
-    pub index_bytes: usize,
-    pub bounds_m: [[f32; 3]; 2],
-    pub dimensions_m: [f32; 3],
-    pub centre_m: [f32; 3],
-    pub materials: Vec<MaterialDiagnostic>,
-}
-
 impl Model {
-    pub fn diagnostics(&self, kind: ModelKind, detail: ModelDetail) -> ModelDiagnostics {
-        ModelDiagnostics {
-            kind,
-            detail,
-            available_details: if matches!(kind, ModelKind::UsCartridge | ModelKind::JpPalCartridge)
-            {
-                vec![ModelDetail::Low, ModelDetail::High]
-            } else {
-                vec![ModelDetail::Low]
-            },
-            triangles: self.triangle_count(),
-            vertex_bytes: self
-                .primitives
-                .iter()
-                .map(|p| p.vertices.len() * std::mem::size_of::<Vertex>())
-                .sum(),
-            index_bytes: self
-                .primitives
-                .iter()
-                .map(|p| p.indices.len() * std::mem::size_of::<u32>())
-                .sum(),
-            bounds_m: [self.bounds.min.to_array(), self.bounds.max.to_array()],
-            dimensions_m: self.bounds.size().to_array(),
-            centre_m: self.bounds.center().to_array(),
-            materials: self
-                .primitives
-                .iter()
-                .map(|p| MaterialDiagnostic {
-                    slot: p.slot,
-                    roughness: p.roughness,
-                    metallic: p.metallic,
-                    double_sided: p.double_sided,
-                })
-                .collect(),
-        }
-    }
-
     /// Coordinates are metres, +Y up, +Z front.
-    pub fn load(kind: ModelKind, detail: ModelDetail) -> Result<Self> {
-        let bytes: &[u8] = match (kind, detail) {
-            (ModelKind::WesternBox, _) => {
+    pub fn load(kind: ModelKind) -> Result<Self> {
+        let bytes: &[u8] = match kind {
+            ModelKind::WesternBox => {
                 include_bytes!("../../../vendor/models/snes-western-box.glb")
             }
-            (ModelKind::JapaneseBoxProxy, _) => {
+            ModelKind::JapaneseBoxProxy => {
                 include_bytes!("../../../vendor/models/snes-japanese-box.glb")
             }
-            (ModelKind::GbaBox, _) => {
+            ModelKind::GbaBox => {
                 include_bytes!("../../../vendor/models/gba-western-box.glb")
             }
-            (ModelKind::GbaJapaneseBox, _) => {
+            ModelKind::GbaJapaneseBox => {
                 include_bytes!("../../../vendor/models/gba-japanese-box.glb")
             }
-            (ModelKind::UsCartridge, ModelDetail::Low) => {
-                include_bytes!("../../../vendor/models/snes-us-low.glb")
-            }
-            (ModelKind::UsCartridge, ModelDetail::High) => {
-                include_bytes!("../../../vendor/models/snes-us-high.glb")
-            }
-            (ModelKind::JpPalCartridge, ModelDetail::Low) => {
+            ModelKind::UsCartridge => include_bytes!("../../../vendor/models/snes-us-low.glb"),
+            ModelKind::JpPalCartridge => {
                 include_bytes!("../../../vendor/models/snes-jp-pal-low.glb")
             }
-            (ModelKind::JpPalCartridge, ModelDetail::High) => {
-                include_bytes!("../../../vendor/models/snes-jp-pal-high.glb")
-            }
-            (ModelKind::GbaCartridge, _) => {
+            ModelKind::GbaCartridge => {
                 include_bytes!("../../../vendor/models/gba-cartridge-low.glb")
             }
         };
@@ -216,10 +134,6 @@ impl Model {
         }
 
         Ok(Self { primitives, bounds })
-    }
-
-    pub fn triangle_count(&self) -> usize {
-        self.primitives.iter().map(|p| p.indices.len() / 3).sum()
     }
 }
 
@@ -329,8 +243,6 @@ fn read_node(
                 slot,
                 color: pbr.base_color_factor(),
                 roughness: pbr.roughness_factor(),
-                metallic: pbr.metallic_factor(),
-                double_sided: material.double_sided(),
             });
         }
     }

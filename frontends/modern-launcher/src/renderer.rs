@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -10,7 +9,7 @@ use wgpu::util::DeviceExt;
 use winit::window::Window;
 
 use crate::artwork_cache::{ArtworkKey, CoverAccent, DecodedArtwork, DecodedImage};
-use crate::models::{self, MaterialSlot, Model, ModelDetail, ModelKind, Vertex};
+use crate::models::{self, MaterialSlot, Model, ModelKind, Vertex};
 use crate::ui::{UiFrame, UiRenderer};
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -157,21 +156,9 @@ struct ArtSet {
     bytes: usize,
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
-pub struct PresentationDiagnostics {
-    pub scene_samples: u32,
-    pub mode: Option<String>,
-    pub acquisition_attempt: u64,
-    pub last_presented_attempt: u64,
-    pub last_failure: Option<&'static str>,
-    pub last_acquire_ms: f64,
-    pub retry_pending: bool,
-}
-
 pub struct Renderer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub adapter_info: wgpu::AdapterInfo,
     ui: UiRenderer,
     surface: Option<wgpu::Surface<'static>>,
     window: Option<Arc<Window>>,
@@ -181,7 +168,7 @@ pub struct Renderer {
     last_present_failure: Option<&'static str>,
     last_acquire_ms: f64,
     surface_config: Option<wgpu::SurfaceConfiguration>,
-    // Rendered offscreen first, so `capture` reads the exact frame.
+    // Rendered offscreen first, then copied to the surface by the present pass.
     target: wgpu::Texture,
     multisampled: Option<wgpu::TextureView>,
     sample_count: u32,
@@ -209,7 +196,6 @@ pub struct Renderer {
     neutral: Texture,
     models: HashMap<ModelKind, Vec<Mesh>>,
     profiles: models::Profiles,
-    model_diagnostics: Vec<models::ModelDiagnostics>,
     artwork: HashMap<ArtworkKey, ArtSet>,
     art_budget: usize,
     art_bytes: usize,
@@ -560,7 +546,6 @@ impl Renderer {
         );
 
         let profiles = models::profiles()?;
-        let mut model_diagnostics = Vec::new();
         let mut models = HashMap::new();
 
         for kind in [
@@ -572,8 +557,7 @@ impl Renderer {
             ModelKind::UsCartridge,
             ModelKind::JpPalCartridge,
         ] {
-            let model = Model::load(kind, ModelDetail::Low)?;
-            model_diagnostics.push(model.diagnostics(kind, ModelDetail::Low));
+            let model = Model::load(kind)?;
 
             let meshes = model
                 .primitives
@@ -589,7 +573,6 @@ impl Renderer {
         Ok(Self {
             device,
             queue,
-            adapter_info,
             ui,
             surface,
             window,
@@ -626,7 +609,6 @@ impl Renderer {
             neutral,
             models,
             profiles,
-            model_diagnostics,
             artwork: HashMap::new(),
             art_budget,
             art_bytes: 0,
@@ -637,35 +619,12 @@ impl Renderer {
         })
     }
 
-    pub fn presentation_diagnostics(&self) -> PresentationDiagnostics {
-        PresentationDiagnostics {
-            scene_samples: self.sample_count,
-            mode: self
-                .surface_config
-                .as_ref()
-                .map(|config| format!("{:?}", config.present_mode)),
-            acquisition_attempt: self.acquisition_attempt,
-            last_presented_attempt: self.last_presented_attempt,
-            last_failure: self.last_present_failure,
-            last_acquire_ms: self.last_acquire_ms,
-            retry_pending: self.needs_present,
-        }
-    }
-
     pub fn needs_present(&self) -> bool {
         self.needs_present
     }
 
     pub fn size(&self) -> [u32; 2] {
         self.size
-    }
-
-    pub fn model_diagnostics(&self) -> &[models::ModelDiagnostics] {
-        &self.model_diagnostics
-    }
-
-    pub fn artwork_bytes(&self) -> usize {
-        self.art_bytes
     }
 
     pub fn has_artwork(&self, key: &ArtworkKey) -> bool {
@@ -1295,63 +1254,6 @@ impl Renderer {
         );
 
         Ok(None)
-    }
-
-    pub fn capture(&self, path: &Path) -> Result<()> {
-        let [width, height] = self.size;
-        let row = (width * 4).div_ceil(256) * 256;
-
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("capture readback"),
-            size: u64::from(row) * u64::from(height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture: &self.target,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-
-        self.queue.submit([encoder.finish()]);
-        let (send, recv) = std::sync::mpsc::channel();
-
-        buffer.map_async(wgpu::MapMode::Read, .., move |result| {
-            let _ = send.send(result);
-        });
-
-        self.device.poll(wgpu::PollType::wait_indefinitely())?;
-        recv.recv()??;
-        let mapped = buffer.get_mapped_range(..)?;
-        let mut rgba = Vec::with_capacity((width * height * 4) as usize);
-
-        for line in mapped.chunks_exact(row as usize) {
-            rgba.extend_from_slice(&line[..width as usize * 4]);
-        }
-
-        image::save_buffer(path, &rgba, width, height, image::ColorType::Rgba8)?;
-        drop(mapped);
-        buffer.unmap();
-        Ok(())
     }
 }
 

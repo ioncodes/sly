@@ -8,6 +8,7 @@ use glyphon::{
 use wgpu::util::DeviceExt;
 
 use crate::color::srgb8_to_linear;
+use crate::icons::StatusIcon;
 use crate::prompts::PromptIcon;
 
 const MAX_RASTER_BYTES: usize = 16 * 1024 * 1024;
@@ -186,6 +187,23 @@ impl UiFrame {
             width,
             height,
             color: None,
+            snap_to_physical_pixel: true,
+            metadata: 0,
+        });
+    }
+
+    pub fn status_icon(&mut self, icon: StatusIcon, x: f32, y: f32, size: f32, color: [u8; 4]) {
+        let scale = self.scale_factor;
+        let side = (size * scale).round() / scale;
+        let [r, g, b, a] = color;
+
+        self.icons.push(CustomGlyph {
+            id: icon.id(),
+            left: (x * scale).round() / scale,
+            top: (y * scale).round() / scale,
+            width: side,
+            height: side,
+            color: Some(Color::rgba(r, g, b, a)),
             snap_to_physical_pixel: true,
             metadata: 0,
         });
@@ -687,6 +705,13 @@ impl UiRenderer {
             areas.chain(std::iter::once(icons)),
             &mut self.swash,
             |request| {
+                if let Some(icon) = StatusIcon::from_id(request.id) {
+                    return Some(RasterizedCustomGlyph {
+                        data: icon.rasterize(request.width, request.height)?,
+                        content_type: ContentType::Mask,
+                    });
+                }
+
                 let source = &PromptIcon::from_id(request.id)?.raster().image;
 
                 let raster = image::imageops::resize(

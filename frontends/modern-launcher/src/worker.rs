@@ -109,10 +109,6 @@ impl<Request: Send + 'static, Response: Send + 'static> LatestJob<Request, Respo
 
         result
     }
-
-    pub fn pending(&self) -> bool {
-        self.pending
-    }
 }
 
 impl<Request, Response> Drop for LatestJob<Request, Response> {

@@ -11,7 +11,8 @@ use glam::{Mat3, Mat4, Quat, Vec3};
 use crate::animation::{Animation, PRESENTATION, Phase, smoothstep};
 use crate::artwork_cache::{ArtworkCache, ArtworkKey, CoverAccent};
 use crate::color::{luminance, srgb_to_linear, srgb8_to_linear};
-use crate::file_browser::{DirectoryBrowser, DirectoryListing, MAX_DIRECTORY_ENTRIES};
+use crate::file_browser::{self, DirectoryBrowser, DirectoryListing, MAX_DIRECTORY_ENTRIES};
+use crate::icons::StatusIcon;
 use crate::input::{Action, ActiveInput, Input, InputContext};
 use crate::library::{Discovery, LibraryEntry};
 use crate::models::{self, Profiles, ReleaseMarket};
@@ -124,6 +125,7 @@ pub struct App {
     remapping: bool,
     status_until: Instant,
     status_visible: bool,
+    status_severity: Severity,
     pub contours: bool,
     pub lighting: bool,
     pub session: Option<GameSession>,
@@ -179,6 +181,7 @@ impl App {
             remapping: false,
             status_until: Instant::now() + STATUS_DURATION,
             status_visible: false,
+            status_severity: Severity::Warning,
             contours: true,
             lighting: true,
             session: None,
@@ -364,7 +367,7 @@ impl App {
                 self.status.clear();
                 self.needs_redraw = true;
             }
-            Err(error) => self.notice(error.to_string()),
+            Err(error) => self.notice(Severity::Error, error.to_string()),
         }
     }
 
@@ -559,7 +562,7 @@ impl App {
 
     fn commit_artwork_key(&mut self, key: &str) {
         if let Err(error) = settings::set_api_key(key) {
-            self.notice(error);
+            self.notice(Severity::Error, error);
             return;
         }
 
@@ -610,9 +613,9 @@ impl App {
                 match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
                     Ok(text) => match settings::normalize_key(&text) {
                         Ok(text) => self.artwork_key_draft.push_str(&text),
-                        Err(error) => self.notice(error),
+                        Err(error) => self.notice(Severity::Error, error),
                     },
-                    Err(_) => self.notice("Cannot read clipboard".into()),
+                    Err(_) => self.notice(Severity::Error, "Cannot read clipboard".into()),
                 }
             }
             _ if !modifiers.control_key() && !modifiers.super_key() => {
@@ -629,7 +632,7 @@ impl App {
 
     pub fn save_settings(&mut self) -> bool {
         if let Err(error) = self.settings.save(&self.settings_path) {
-            self.notice(error.to_string());
+            self.notice(Severity::Error, error.to_string());
             return false;
         }
 
@@ -664,18 +667,21 @@ impl App {
                     });
 
                     if listing.truncated {
-                        self.notice(format!(
-                            "Directory listing is limited to {MAX_DIRECTORY_ENTRIES} entries. \
+                        self.notice(
+                            Severity::Warning,
+                            format!(
+                                "Directory listing is limited to {MAX_DIRECTORY_ENTRIES} entries. \
                              Choose a smaller directory."
-                        ));
+                            ),
+                        );
                     } else if !listing.warnings.is_empty() {
-                        self.notice(listing.warnings.join("; "));
+                        self.notice(Severity::Warning, listing.warnings.join("; "));
                     }
 
                     self.folder_listing = Some(listing);
                     self.menu_focus = 0;
                 }
-                Err(error) => self.notice(error),
+                Err(error) => self.notice(Severity::Error, error),
             }
 
             self.needs_redraw = true;
@@ -712,7 +718,7 @@ impl App {
         if let Some(result) = self.discovery.poll() {
             self.invalidate_artwork();
             self.replace_library(result.entries);
-            self.notice(result.warnings.join("\n"));
+            self.notice(Severity::Warning, result.warnings.join("\n"));
         }
 
         if let Some(result) = self.loader.poll() {
@@ -725,7 +731,7 @@ impl App {
                     }
                 }
                 Err(error) => {
-                    self.notice(error);
+                    self.notice(Severity::Error, error);
                     self.sounds.stop();
                     self.animation.cancel_launch();
                     self.loaded = None;
@@ -739,7 +745,7 @@ impl App {
         if self.animation.launch_ready()
             && let Some(loaded) = self.loaded.take()
         {
-            self.notice(loaded.warnings.join("\n"));
+            self.notice(Severity::Warning, loaded.warnings.join("\n"));
             self.session = Some(loaded.activate(self.settings.volume));
             self.frame_sequence = None;
             self.animation.enter_playing();
@@ -759,7 +765,7 @@ impl App {
             }
 
             if !warnings.is_empty() {
-                self.notice(warnings.join("\n"));
+                self.notice(Severity::Warning, warnings.join("\n"));
             }
         }
 
@@ -888,27 +894,6 @@ impl App {
         }
     }
 
-    pub fn pending(&self) -> bool {
-        self.browser.as_ref().is_some_and(DirectoryBrowser::pending)
-            || !self.discovery.finished()
-            || self.loader.pending()
-            || (self.session.is_none()
-                && self.animation.phase != Phase::Launching
-                && self.artwork.has_pending())
-    }
-
-    pub fn discovery_finished(&self) -> bool {
-        self.discovery.finished()
-    }
-
-    pub fn cache_stats(&self) -> crate::artwork_cache::CacheStats {
-        self.artwork.stats()
-    }
-
-    pub fn cpu_artwork_bytes(&self) -> usize {
-        self.artwork.stats().cpu_bytes
-    }
-
     pub fn now_seconds(&self) -> f64 {
         self.startup.elapsed().as_secs_f64()
     }
@@ -952,10 +937,6 @@ impl App {
             self.display_region(&self.entries[index]),
             self.settings.quality.artwork_size(),
         )
-    }
-
-    pub fn scene(&self, size: [u32; 2]) -> Scene {
-        self.scene_with_scale(size, 1.0)
     }
 
     pub fn scene_with_scale(&self, size: [u32; 2], scale: f32) -> Scene {
@@ -1421,6 +1402,7 @@ impl App {
                         message_height,
                     ],
                     &self.status,
+                    self.status_severity,
                 );
             }
 
@@ -1607,6 +1589,7 @@ impl App {
                     message_height,
                 ],
                 &self.status,
+                self.status_severity,
             );
         }
     }
@@ -1791,13 +1774,11 @@ impl App {
             .as_deref()
             .filter(|_| menu == Menu::Controls);
 
-        let status = error.unwrap_or_else(|| {
-            if self.status_visible(Instant::now()) {
-                &self.status
-            } else {
-                ""
-            }
-        });
+        let (status, severity) = match error {
+            Some(error) => (error, Severity::Error),
+            None if self.status_visible(Instant::now()) => (&*self.status, self.status_severity),
+            None => ("", self.status_severity),
+        };
 
         let mut layout = MenuLayout::new(
             ui.logical_size,
@@ -1878,7 +1859,13 @@ impl App {
             } else {
                 self.folder_listing
                     .as_ref()
-                    .map(|l| l.path.display().to_string())
+                    .map(|l| {
+                        if file_browser::is_drive_list(&l.path) {
+                            "Drives".into()
+                        } else {
+                            l.path.display().to_string()
+                        }
+                    })
                     .unwrap_or_else(|| "Choose Home to start again".into())
             };
 
@@ -2082,6 +2069,7 @@ impl App {
                     layout.status_height,
                 ],
                 status,
+                severity,
             );
         }
     }
@@ -2127,7 +2115,11 @@ impl App {
                     ("Home folder".into(), String::new()),
                     (
                         "Use this folder".into(),
-                        if self.folder_listing.is_some() {
+                        if self
+                            .folder_listing
+                            .as_ref()
+                            .is_some_and(|l| !file_browser::is_drive_list(&l.path))
+                        {
                             String::new()
                         } else {
                             "Unavailable".into()
@@ -2328,7 +2320,7 @@ impl App {
                     }
                     Some(SettingsRow::ArtworkAccount) => {
                         if let Err(error) = open::that(settings::ACCOUNT_URL) {
-                            self.notice(error.to_string());
+                            self.notice(Severity::Error, error.to_string());
                         }
                     }
                     Some(SettingsRow::AddFolder) => {
@@ -2349,7 +2341,7 @@ impl App {
                                 self.menu = Some(Menu::Folders);
                                 self.menu_focus = 0;
                             }
-                            Err(error) => self.notice(error.to_string()),
+                            Err(error) => self.notice(Severity::Error, error.to_string()),
                         }
                     }
                     Some(SettingsRow::Rescan) => self.rescan(),
@@ -2375,7 +2367,9 @@ impl App {
                         }
                     } else if let Some(listing) = &self.folder_listing {
                         if self.menu_focus == 1 {
-                            self.add_rom_directory(listing.path.clone());
+                            if !file_browser::is_drive_list(&listing.path) {
+                                self.add_rom_directory(listing.path.clone());
+                            }
                         } else if let Some(entry) = listing.entries.get(self.menu_focus - 2) {
                             if !entry.is_directory {
                                 self.add_rom_directory(entry.path.clone());
@@ -2573,7 +2567,8 @@ impl App {
         self.needs_redraw = true;
     }
 
-    fn notice(&mut self, message: String) {
+    fn notice(&mut self, severity: Severity, message: String) {
+        self.status_severity = severity;
         self.status = message;
         self.status_until = Instant::now() + STATUS_DURATION;
         self.needs_redraw = true;
@@ -2583,10 +2578,13 @@ impl App {
         if let Some(session) = &self.session {
             let result = session.quick_save();
 
-            self.notice(match result {
-                Ok(()) => String::new(),
-                Err(error) => format!("Save failed: {error}"),
-            });
+            self.notice(
+                Severity::Error,
+                match result {
+                    Ok(()) => String::new(),
+                    Err(error) => format!("Save failed: {error}"),
+                },
+            );
         }
     }
 
@@ -2595,11 +2593,11 @@ impl App {
             let result = session.quick_load();
             self.frame_sequence = None;
 
-            self.notice(match result {
-                Ok(true) => String::new(),
-                Ok(false) => "No quick state saved yet".into(),
-                Err(error) => format!("Load failed: {error}"),
-            });
+            match result {
+                Ok(true) => self.status.clear(),
+                Ok(false) => self.notice(Severity::Warning, "No quick state saved yet".into()),
+                Err(error) => self.notice(Severity::Error, format!("Load failed: {error}")),
+            }
         }
     }
 
@@ -2609,7 +2607,7 @@ impl App {
 
             match session.persist() {
                 Ok(_) => self.status.clear(),
-                Err(error) => self.notice(format!("Save failed: {error}")),
+                Err(error) => self.notice(Severity::Error, format!("Save failed: {error}")),
             }
 
             self.animation.return_to_library();
@@ -2951,16 +2949,51 @@ fn notice_height(text_scale: f32) -> f32 {
     14.0 * 1.3 * text_scale * 3.0 + 24.0
 }
 
-fn notice_ui(ui: &mut UiFrame, [x, y, width, height]: [f32; 4], message: &str) {
-    ui.rect([x, y, width, height], [250, 237, 218, 255], 10.0);
-    ui.rect([x, y + 10.0, 4.0, height - 20.0], [170, 83, 33, 255], 2.0);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Severity {
+    Warning,
+    Error,
+}
+
+impl Severity {
+    fn colors(self) -> ([u8; 4], [u8; 4], [u8; 4]) {
+        match self {
+            Self::Warning => ([250, 196, 30, 120], [196, 136, 0, 255], [110, 72, 0, 255]),
+            Self::Error => ([220, 60, 50, 64], [204, 52, 44, 255], [132, 30, 26, 255]),
+        }
+    }
+
+    fn icon(self) -> StatusIcon {
+        match self {
+            Self::Warning => StatusIcon::Warning,
+            Self::Error => StatusIcon::Error,
+        }
+    }
+}
+
+fn notice_ui(ui: &mut UiFrame, [x, y, width, height]: [f32; 4], message: &str, severity: Severity) {
+    let (wash, icon_color, foreground) = severity.colors();
+    ui.rect([x, y, width, height], [252, 250, 247, 200], 12.0);
+    ui.rect([x, y, width, height], wash, 12.0);
+
+    let icon = 20.0 * ui.text_scale;
+    let icon_x = x + 16.0;
+    ui.status_icon(
+        severity.icon(),
+        icon_x,
+        y + ((height - icon) * 0.5),
+        icon,
+        icon_color,
+    );
+
+    let text_x = icon_x + icon + 12.0;
     let text = ui.text(
-        x + 16.0,
+        text_x,
         y + 12.0,
-        width - 32.0,
+        x + width - text_x - 16.0,
         14.0,
         message,
-        [100, 45, 22, 255],
+        foreground,
     );
     text.max_height = height - 24.0;
     text.vertically_centered = true;

@@ -51,7 +51,35 @@ impl DirectoryBrowser {
     }
 }
 
+/// Windows has no single filesystem root, so an empty path lists the available drives instead.
+pub fn is_drive_list(path: &Path) -> bool {
+    cfg!(windows) && path.as_os_str().is_empty()
+}
+
+fn read_drives() -> DirectoryListing {
+    let entries = (b'A'..=b'Z')
+        .map(|letter| PathBuf::from(format!("{}:\\", letter as char)))
+        .filter(|path| path.is_dir())
+        .map(|path| DirectoryEntry {
+            name: path.display().to_string(),
+            path,
+            is_directory: true,
+        })
+        .collect();
+
+    DirectoryListing {
+        path: PathBuf::new(),
+        entries,
+        warnings: Vec::new(),
+        truncated: false,
+    }
+}
+
 fn read_directory(path: &Path, cancelled: &dyn Fn() -> bool) -> Result<DirectoryListing, String> {
+    if is_drive_list(path) {
+        return Ok(read_drives());
+    }
+
     let path = path
         .canonicalize()
         .map_err(|error| format!("Cannot open {}: {error}", path.display()))?;
@@ -59,11 +87,15 @@ fn read_directory(path: &Path, cancelled: &dyn Fn() -> bool) -> Result<Directory
     let directory = std::fs::read_dir(&path)
         .map_err(|error| format!("Cannot list {}: {error}", path.display()))?;
 
-    let parent = path.parent().map(|path| DirectoryEntry {
-        name: "..".into(),
-        path: path.to_path_buf(),
-        is_directory: true,
-    });
+    let parent = path
+        .parent()
+        .map(Path::to_path_buf)
+        .or_else(|| cfg!(windows).then(PathBuf::new))
+        .map(|path| DirectoryEntry {
+            name: "..".into(),
+            path,
+            is_directory: true,
+        });
 
     let capacity = MAX_DIRECTORY_ENTRIES - usize::from(parent.is_some());
     let mut ordered = BTreeMap::new();
