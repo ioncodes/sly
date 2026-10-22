@@ -1,5 +1,3 @@
-#![feature(default_field_values)]
-
 mod alu;
 pub mod apu;
 pub mod callstack;

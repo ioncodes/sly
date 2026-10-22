@@ -1,4 +1,4 @@
 [toolchain]
-channel = "nightly-2026-06-28"
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]
 targets = ["wasm32-unknown-unknown", "aarch64-apple-ios", "aarch64-apple-ios-sim"]

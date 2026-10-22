@@ -23,7 +23,6 @@ pub const IRAM_SIZE: usize = 0x800;
 pub(crate) const SNES_IRAM_START: u16 = 0x3000;
 pub(crate) const SNES_IRAM_END: u16 = 0x37FF;
 const IRAM_BLOCK_SIZE: usize = 0x100;
-const IRAM_ZEROED: [u8; IRAM_SIZE] = [0; IRAM_SIZE];
 
 fn vector_slot(reg: u16, start: u16) -> Option<(usize, usize)> {
     let index = usize::from(reg.checked_sub(start)?);
@@ -301,13 +300,13 @@ impl InterruptState {
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Sa1 {
     pub cpu: Cpu,
     clocks: u64,
     clock_remainder: u64,
     #[serde(with = "BigArray")]
-    pub iram: [u8; IRAM_SIZE] = IRAM_ZEROED,
+    pub iram: [u8; IRAM_SIZE],
     pub(crate) siwp: IramWriteProtection,
     pub(crate) ciwp: IramWriteProtection,
     pub(crate) ccnt: Sa1CpuControl,
@@ -321,6 +320,30 @@ pub struct Sa1 {
     math: Math,
     character_conversion_dma_irq_pending: bool,
     irq_from_sa1_pending: bool,
+}
+
+impl Default for Sa1 {
+    fn default() -> Self {
+        Self {
+            cpu: Cpu::default(),
+            clocks: 0,
+            clock_remainder: 0,
+            iram: [0; IRAM_SIZE],
+            siwp: IramWriteProtection::default(),
+            ciwp: IramWriteProtection::default(),
+            ccnt: Sa1CpuControl::default(),
+            sie: SnesInterruptBits::default(),
+            scnt: SnesCpuControl::default(),
+            interrupts: InterruptState::default(),
+            vectors: [0; VECTOR_COUNT],
+            snes_vectors: [0; SNES_VECTOR_COUNT],
+            memory: MemoryControl::default(),
+            cdma: CharacterConversionDmaParameters::default(),
+            math: Math::default(),
+            character_conversion_dma_irq_pending: false,
+            irq_from_sa1_pending: false,
+        }
+    }
 }
 
 impl Sa1 {

@@ -31,7 +31,7 @@ members = [
 [workspace.dependencies]
 gpui = { package = "gpui-ce", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f", features = ["custom-gpu"] }
 gpui_platform = { package = "gpui_ce_platform", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f", features = ["windows-wgpu", "macos-wgpu"] }
-gpui_web = { package = "gpui_ce_web", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f" }
+gpui_web = { package = "gpui_ce_web", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f", default-features = false }
 gpui_wgpu = { package = "gpui_ce_wgpu", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f", features = ["custom-gpu"] }
 http_client = { git = "https://github.com/ioncodes/zed", rev = "1f0b390b2024a7235a166f9f3c6f1c3775b7e045" }
 reqwest_client = { git = "https://github.com/ioncodes/zed", rev = "1f0b390b2024a7235a166f9f3c6f1c3775b7e045" }

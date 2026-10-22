@@ -16,7 +16,7 @@ pub use bitmap::PixelCache;
 
 pub const VERSION_CODE: u8 = 0x04;
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct SuperFx {
     pub r: [u16; 16],
     pub sfr: Sfr,
@@ -31,7 +31,7 @@ pub struct SuperFx {
     pub bramr: u8,
     pub sreg: u8,
     pub dreg: u8,
-    pub pipeline: u8 = 0x01,
+    pub pipeline: u8,
     pub ram_addr: u16,
     pub colr: Colr,
     pub por: Por,
@@ -58,6 +58,50 @@ pub struct SuperFx {
 
     tick_scheduled: bool,
     latch: u8,
+}
+
+impl Default for SuperFx {
+    fn default() -> Self {
+        Self {
+            r: [0; 16],
+            sfr: Sfr::default(),
+            pbr: 0,
+            rombr: 0,
+            rambr: 0,
+            cbr: 0,
+            scbr: 0,
+            scmr: Scmr::default(),
+            cfgr: Cfgr::default(),
+            clsr: Clsr::default(),
+            bramr: 0,
+            sreg: 0,
+            dreg: 0,
+            pipeline: 0x01,
+            ram_addr: 0,
+            colr: Colr::default(),
+            por: Por::default(),
+            cache: CodeCache::default(),
+
+            rom_buffer: RomBuffer::default(),
+            ram_buffer: RamWriteBuffer::default(),
+            wait_rom: false,
+            wait_ram: false,
+            pixel_primary: PixelCache::default(),
+            pixel_secondary: PixelCache::default(),
+
+            #[cfg(feature = "debug")]
+            pipeline_addr: 0,
+
+            #[cfg(feature = "debug")]
+            stopped_screen: None,
+
+            #[cfg(feature = "debug")]
+            step_debt: 0,
+
+            tick_scheduled: false,
+            latch: 0,
+        }
+    }
 }
 
 #[derive(Default, Serialize, Deserialize)]
