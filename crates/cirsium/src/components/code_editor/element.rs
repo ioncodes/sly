@@ -11,6 +11,7 @@ use gpui::{
 use scripting::LuaTokenKind;
 
 use super::CodeEditor;
+use crate::components::line_geometry::LineGeometry;
 use crate::theme::{Theme, with_alpha};
 
 const GUTTER_PAD: f32 = 10.;
@@ -140,14 +141,13 @@ impl Element for EditorElement {
                         background_color: None,
                         underline: None,
                         strikethrough: None,
+                        letter_spacing: None,
                     }],
-                    None,
                 ),
                 None => window.text_system().shape_line(
                     text.to_string().into(),
                     font_size,
                     &self::runs(editor, &range, &mut token_cursor, &font, t, style.color),
-                    None,
                 ),
             };
 
@@ -166,8 +166,8 @@ impl Element for EditorElement {
                     background_color: None,
                     underline: None,
                     strikethrough: None,
+                    letter_spacing: None,
                 }],
-                None,
             );
 
             let top = row_top(row);
@@ -195,15 +195,23 @@ impl Element for EditorElement {
                 let end = selection.end.saturating_sub(range.start).min(range.len());
                 let trailing = selection.end > range.end;
 
-                let left = text_x + shaped.x_for_index(start);
-                let right = text_x
-                    + shaped.x_for_index(end)
-                    + if trailing { font_size * 0.5 } else { px(0.) };
+                for mut selection_bounds in shaped
+                    .platform_layout
+                    .selection_bounds(start..end, line_height)
+                {
+                    selection_bounds.origin += point(text_x, top);
+                    quads.push(fill(selection_bounds, t.selection));
+                }
 
-                quads.push(fill(
-                    Bounds::from_corners(point(left, top), point(right, top + line_height)),
-                    t.selection,
-                ));
+                if trailing {
+                    quads.push(fill(
+                        Bounds::new(
+                            point(text_x + shaped.width, top),
+                            size(font_size * 0.5, line_height),
+                        ),
+                        t.selection,
+                    ));
+                }
             }
 
             lines.push((row, shaped));
@@ -213,7 +221,9 @@ impl Element for EditorElement {
         let caret_x = lines
             .iter()
             .find(|(ix, _)| *ix == cursor_line)
-            .map(|(_, shaped)| shaped.x_for_index(cursor_offset - editor.line_starts[cursor_line]))
+            .and_then(|(_, shaped)| {
+                shaped.caret_x(cursor_offset - editor.line_starts[cursor_line], line_height)
+            })
             .unwrap_or_default();
         let caret = point(gutter + caret_x, line_height * cursor_line as f32);
 
@@ -347,6 +357,7 @@ fn runs(
             background_color: None,
             underline: None,
             strikethrough: None,
+            letter_spacing: None,
         });
     };
 

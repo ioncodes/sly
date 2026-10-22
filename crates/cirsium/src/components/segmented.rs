@@ -3,7 +3,7 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{
     AlignItems, AnyElement, App, BorderStyle, Bounds, Corners, DefiniteLength, Display, Edges,
-    Element, ElementId, FlexDirection, GlobalElementId, Hsla, InspectorElementId, LayoutId, Pixels,
+    Element, ElementId, FlexDirection, GlobalElementId, InspectorElementId, LayoutId, Pixels,
     SharedString, Size, Style, Window, div, point, px, quad, size, svg,
 };
 
@@ -330,7 +330,7 @@ impl Element for Segmented {
                     Corners::all(px(PILL_RADIUS)),
                     accent,
                     Edges::default(),
-                    Hsla::transparent_black(),
+                    gpui::transparent_black(),
                     BorderStyle::default(),
                 ));
                 ((), p)

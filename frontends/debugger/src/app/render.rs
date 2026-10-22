@@ -30,7 +30,7 @@ pub(super) fn themed(mode: ThemeMode, accent: usize) -> Theme {
     if accent == 0 {
         base
     } else {
-        base.with_accent(rgb(accent_at(accent)).into())
+        base.with_accent(cirsium::theme::hex(accent_at(accent)))
     }
 }
 
@@ -61,23 +61,6 @@ impl Render for Debugger {
         let t = &*theme;
 
         self.sync_game_focus(window, cx);
-
-        if self.framebuffer_dirty {
-            self.framebuffer_dirty = false;
-            let updated = self
-                .framebuffer
-                .as_ref()
-                .and_then(|view| view.image.as_ref())
-                .is_some_and(|image| window.update_image(image, 0, &self.framebuffer_staged));
-
-            if !updated {
-                let old = self
-                    .framebuffer
-                    .as_mut()
-                    .and_then(|view| view.rebuild_from_staged(&self.framebuffer_staged));
-                Self::drop_grid_image(cx, old);
-            }
-        }
 
         self.logs.follow_tail();
 

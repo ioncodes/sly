@@ -110,16 +110,10 @@ impl EntityInputHandler for TextInput {
     ) -> Option<Bounds<Pixels>> {
         let last_layout = self.last_layout.as_ref()?;
         let range = self.range_from_utf16(&range_utf16);
-        Some(Bounds::from_corners(
-            point(
-                bounds.left() + last_layout.x_for_index(range.start),
-                bounds.top(),
-            ),
-            point(
-                bounds.left() + last_layout.x_for_index(range.end),
-                bounds.bottom(),
-            ),
-        ))
+        let mut geometry = last_layout.range_bounds(range, bounds.size.height)?;
+
+        geometry.origin += bounds.origin;
+        Some(geometry)
     }
 
     fn character_index_for_point(
@@ -128,9 +122,13 @@ impl EntityInputHandler for TextInput {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
-        let line_point = self.last_bounds?.localize(&point)?;
+        let bounds = self.last_bounds?;
+        let line_point = bounds.localize(&point)?;
         let last_layout = self.last_layout.as_ref()?;
-        let utf8_index = last_layout.index_for_x(point.x - line_point.x)?;
+        let utf8_index = last_layout
+            .platform_layout
+            .byte_index_from_pixel_point(line_point, bounds.size.height)
+            .ok()?;
         Some(self.offset_to_utf16(utf8_index))
     }
 }

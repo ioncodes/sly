@@ -78,8 +78,10 @@ impl GlyphMetrics {
         let font_id = text.resolve_font(&gpui::font(font));
         let rem = window.rem_size();
         let advance = |scale: f32| {
-            text.em_advance(font_id, rem * scale)
-                .map_or(f32::from(rem) * scale * 0.6, f32::from)
+            text.advance(font_id, rem * scale, 'm')
+                .map_or(f32::from(rem) * scale * 0.6, |advance| {
+                    f32::from(advance.width)
+                })
         };
 
         Self {

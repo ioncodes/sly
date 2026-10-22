@@ -64,7 +64,7 @@ pub(in crate::widgets) fn build_image(
     Arc::new(RenderImage::new(vec![image::Frame::new(image)]))
 }
 
-pub(in crate::widgets) fn bgra_into(pixels: &[[u8; 4]], out: &mut [u8]) {
+fn bgra_into(pixels: &[[u8; 4]], out: &mut [u8]) {
     for (dst, &src) in out.as_chunks_mut::<4>().0.iter_mut().zip(pixels) {
         *dst = self::bgra(src);
     }

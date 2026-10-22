@@ -1,5 +1,6 @@
 use super::*;
 use crate::diff::{Highlight, highlight_color, highlight_fill};
+use gpui::{ColorExt, StyledText};
 
 #[derive(Clone, Default)]
 pub(super) struct RowStates {
@@ -200,12 +201,22 @@ pub(super) fn instruction_text(theme: &Theme, tokens: &[DisasmToken], mnemonic_m
         );
     }
 
-    for tok in tokens.iter().skip(1) {
+    let mut operands = String::new();
+    let mut highlights = Vec::with_capacity(tokens.len().saturating_sub(1));
+
+    for token in tokens.iter().skip(1).filter(|token| !token.text.is_empty()) {
+        let start = operands.len();
+        operands.push_str(&token.text);
+
+        let color = super::model::token_color(theme, token.kind);
+        highlights.push((start..operands.len(), color.into()));
+    }
+
+    if !operands.is_empty() {
         text = text.child(
             div()
                 .flex_none()
-                .text_color(super::model::token_color(theme, tok.kind))
-                .child(SharedString::from(tok.text.clone())),
+                .child(StyledText::new(operands).with_highlights(highlights)),
         );
     }
 

@@ -522,13 +522,13 @@ fn paint_window_overlays(
     };
 
     for overlay in overlays {
-        let color = slot_color(&colors, overlay.slot);
+        let mut shade = slot_color(&colors, overlay.slot);
+        shade.lightness = 0.04;
+        shade.alpha = 0.80;
+
         for rect in &overlay.effective {
             for bounds in rect.rects(map_w, map_h, scale) {
-                window.paint_quad(fill(
-                    offset(bounds),
-                    gpui::hsla(color.h, color.s, 0.04, 0.80),
-                ));
+                window.paint_quad(fill(offset(bounds), shade));
             }
         }
     }

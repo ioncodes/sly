@@ -29,14 +29,17 @@ members = [
 ]
 
 [workspace.dependencies]
-gpui = { git = "https://github.com/ioncodes/zed", rev = "1f0b390b2024a7235a166f9f3c6f1c3775b7e045" }
-gpui_platform = { git = "https://github.com/ioncodes/zed", rev = "1f0b390b2024a7235a166f9f3c6f1c3775b7e045" }
-gpui_web = { git = "https://github.com/ioncodes/zed", rev = "1f0b390b2024a7235a166f9f3c6f1c3775b7e045" }
+gpui = { package = "gpui-ce", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f", features = ["custom-gpu"] }
+gpui_platform = { package = "gpui_ce_platform", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f", features = ["windows-wgpu", "macos-wgpu"] }
+gpui_web = { package = "gpui_ce_web", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f" }
+gpui_wgpu = { package = "gpui_ce_wgpu", git = "https://github.com/ioncodes/gpui-ce", rev = "aebae9479ed644fe0d5cf28469219a648978da8f", features = ["custom-gpu"] }
+http_client = { git = "https://github.com/ioncodes/zed", rev = "1f0b390b2024a7235a166f9f3c6f1c3775b7e045" }
 reqwest_client = { git = "https://github.com/ioncodes/zed", rev = "1f0b390b2024a7235a166f9f3c6f1c3775b7e045" }
 tracing = { version = "0.1.44", features = ["release_max_level_error"] }
 tracing-subscriber = { version = "0.3.23", features = ["registry", "fmt", "ansi", "std", "env-filter"] }
 
 [patch.crates-io]
+taffy = { git = "https://github.com/ioncodes/taffy", rev = "53643a3c2403d1c32735c09b74dba10caeb7ab77" }
 async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
 async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
 

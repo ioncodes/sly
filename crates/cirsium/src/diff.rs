@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use gpui::Hsla;
+use gpui::{ColorExt, Hsla};
 
 pub use debugger_model::Highlight;
 

@@ -38,7 +38,9 @@ impl Debugger {
         let now = Instant::now();
         let wait = next_frame.saturating_duration_since(now);
         if wait.is_zero() {
-            *next_frame = now;
+            if now.duration_since(*next_frame) >= interval {
+                *next_frame = now;
+            }
             FRAME_PACE_YIELD
         } else {
             wait

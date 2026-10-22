@@ -8,6 +8,8 @@ name = "sly-debugger"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = "1.0"
+http_client = { workspace = true }
 serde = { version = "1.0.229", features = ["derive"] }
 settings = { path = "../../crates/settings" }
 game-database = { path = "../../crates/game-database" }
@@ -38,6 +40,11 @@ wasm-bindgen-futures = "0.4.76"
 js-sys = "0.3.103"
 web-sys = { version = "0.3.103", features = [
     "Window",
+    "Request",
+    "RequestInit",
+    "RequestRedirect",
+    "Headers",
+    "Response",
     "Document",
     "EventTarget",
     "Event",

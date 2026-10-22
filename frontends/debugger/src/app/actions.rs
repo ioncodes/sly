@@ -788,7 +788,7 @@ impl Debugger {
 
     fn after_state_load(&mut self, what: &str) {
         self.invalidate_video_keys();
-        self.framebuffer_dirty = true;
+        self.refresh_framebuffer();
         self.follow_memory();
         self.set_state(&format!("loaded {what}"));
     }

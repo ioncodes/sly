@@ -4,13 +4,14 @@ use std::sync::Arc;
 
 use gpui::prelude::*;
 use gpui::{
-    App, ClickEvent, Div, FontWeight, ScrollHandle, SharedString, Stateful, Window, div, px,
+    App, ClickEvent, Div, FontWeight, SharedString, Stateful, UniformListScrollHandle, Window, div,
+    px, uniform_list,
 };
 
 use crate::assets::icon;
 use crate::components::{
-    ClickHandler, DETAIL_INDENT, INDENT_STEP, Panel, RowCallback, chevron_slot, hex, label_text,
-    row_toggle, vertical_scroll_area,
+    ClickHandler, DETAIL_INDENT, INDENT_STEP, Panel, RowCallback, chevron_slot,
+    empty_state_centered, hex, label_text, row_toggle, uniform_vertical_scroll_area,
 };
 
 use crate::diff::highlight_color;
@@ -24,7 +25,7 @@ pub struct MmioWidget {
     expanded: HashSet<SharedString>,
     collapsed: bool,
     priority: Option<SharedString>,
-    scroll: ScrollHandle,
+    scroll: UniformListScrollHandle,
     on_toggle: Option<ClickHandler>,
     on_toggle_register: Option<RowCallback>,
 }
@@ -38,7 +39,7 @@ impl MmioWidget {
             expanded: HashSet::new(),
             collapsed: false,
             priority: None,
-            scroll: ScrollHandle::new(),
+            scroll: UniformListScrollHandle::new(),
             on_toggle: None,
             on_toggle_register: None,
         }
@@ -59,7 +60,7 @@ impl MmioWidget {
         self
     }
 
-    pub fn scroll(mut self, scroll: ScrollHandle) -> Self {
+    pub fn scroll(mut self, scroll: UniformListScrollHandle) -> Self {
         self.scroll = scroll;
         self
     }
@@ -94,48 +95,73 @@ impl RenderOnce for MmioWidget {
             .map(|group| group.registers.len())
             .sum::<usize>();
 
-        let mut list = div()
-            .id("mmio-list")
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h(px(0.))
-            .overflow_y_scroll()
-            .track_scroll(&scroll);
-
-        if count == 0 {
-            list = list.items_center().justify_center().child(
-                div()
-                    .px_1()
-                    .py_1()
-                    .text_xs()
-                    .text_color(t.text_dim)
-                    .child("No registers"),
-            );
+        let body = if count == 0 {
+            empty_state_centered(t, "No registers")
         } else {
-            let mut groups: Vec<_> = self.view.groups.iter().collect();
-            if let Some(priority) = &self.priority
-                && groups.iter().any(|g| g.name.as_ref() == priority.as_ref())
-            {
-                groups.sort_by_key(|g| g.name.as_ref() != priority.as_ref());
+            let mut groups: Vec<_> = self.view.groups.iter().enumerate().collect();
+            if let Some(priority) = &self.priority {
+                groups.sort_by_key(|(_, g)| g.name.as_ref() != priority.as_ref());
             }
 
-            for group in groups {
-                list = list.child(self::group_header(t, group.name.clone().into()));
-                for reg in &group.registers {
+            let mut rows = Vec::with_capacity(count + groups.len());
+            for (group_ix, group) in groups {
+                rows.push(MmioRow::Group(group_ix));
+
+                for (register_ix, reg) in group.registers.iter().enumerate() {
                     let is_expanded = self.expanded.contains(reg.id.as_ref());
-                    list = list.child(self::register_row(
-                        t,
-                        reg,
-                        is_expanded,
-                        self.on_toggle_register.clone(),
-                    ));
+                    rows.push(MmioRow::Register(group_ix, register_ix, is_expanded));
+
                     if is_expanded {
-                        list = list.children(self::field_rows(t, &reg.fields, 0));
+                        self::append_fields(
+                            &mut rows,
+                            group_ix,
+                            register_ix,
+                            &reg.fields,
+                            &mut Vec::new(),
+                        );
                     }
                 }
             }
-        }
+
+            let view = self.view;
+            let on_toggle = self.on_toggle_register;
+
+            let list = uniform_list("mmio-list", rows.len(), move |range, _, cx| {
+                let theme = Theme::global(cx);
+
+                range
+                    .map(|ix| match &rows[ix] {
+                        MmioRow::Group(group) => {
+                            self::group_header(&theme, view.groups[*group].name.clone().into())
+                                .into_any_element()
+                        }
+                        MmioRow::Register(group, register, expanded) => self::register_row(
+                            &theme,
+                            &view.groups[*group].registers[*register],
+                            *expanded,
+                            on_toggle.clone(),
+                        )
+                        .into_any_element(),
+                        MmioRow::Field(group, register, path) => {
+                            let (last, parents) = path.split_last().unwrap();
+
+                            let mut fields = &view.groups[*group].registers[*register].fields;
+                            for &index in parents {
+                                fields = &fields[index].children;
+                            }
+
+                            self::field_row(&theme, &fields[*last], parents.len())
+                                .into_any_element()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .track_scroll(&scroll)
+            .flex_1()
+            .min_h(px(0.));
+
+            uniform_vertical_scroll_area(list, &scroll, t).flex_1()
+        };
 
         Panel::new(Self::ID, "MMIO")
             .glyph(icon::LIST)
@@ -143,13 +169,37 @@ impl RenderOnce for MmioWidget {
             .collapsed(self.collapsed)
             .meta(format!("{count}"))
             .on_toggle_opt(self.on_toggle)
-            .child(vertical_scroll_area(list, scroll, t).flex_1())
+            .child(body)
+    }
+}
+
+const ROW_HEIGHT: f32 = 22.;
+
+enum MmioRow {
+    Group(usize),
+    Register(usize, usize, bool),
+    Field(usize, usize, Vec<usize>),
+}
+
+fn append_fields(
+    rows: &mut Vec<MmioRow>,
+    group: usize,
+    register: usize,
+    fields: &[MmioFieldView],
+    path: &mut Vec<usize>,
+) {
+    for (index, field) in fields.iter().enumerate() {
+        path.push(index);
+        rows.push(MmioRow::Field(group, register, path.clone()));
+        append_fields(rows, group, register, &field.children, path);
+        path.pop();
     }
 }
 
 fn group_header(theme: &Theme, name: SharedString) -> Div {
     div()
         .flex()
+        .h(px(ROW_HEIGHT))
         .items_center()
         .px_1()
         .py(px(2.))
@@ -189,6 +239,7 @@ fn register_row(
     let mut row = div()
         .id(reg.id.clone())
         .flex()
+        .h(px(ROW_HEIGHT))
         .items_center()
         .gap_2()
         .px_1()
@@ -204,17 +255,6 @@ fn register_row(
     }
 
     row
-}
-
-fn field_rows(theme: &Theme, fields: &[MmioFieldView], depth: usize) -> Vec<Div> {
-    let mut rows = Vec::new();
-    for field in fields {
-        rows.push(self::field_row(theme, field, depth));
-        if !field.children.is_empty() {
-            rows.extend(self::field_rows(theme, &field.children, depth + 1));
-        }
-    }
-    rows
 }
 
 fn field_row(theme: &Theme, field: &MmioFieldView, depth: usize) -> Div {
@@ -243,6 +283,7 @@ fn field_row(theme: &Theme, field: &MmioFieldView, depth: usize) -> Div {
 
     div()
         .flex()
+        .h(px(ROW_HEIGHT))
         .items_center()
         .gap_2()
         .pl(indent)

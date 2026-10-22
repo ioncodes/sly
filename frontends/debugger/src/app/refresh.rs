@@ -173,24 +173,20 @@ impl Debugger {
             .map(Into::into);
     }
 
-    pub(super) fn refresh_framebuffer(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn refresh_framebuffer(&mut self) {
         if self.is_collapsed(FramebufferWidget::ID) {
             return;
         }
 
         let fb = self.target.software_frame();
 
-        if let (Some(view), Some(fb)) = (&self.framebuffer, &fb)
-            && view.matches(fb)
+        if let (Some(view), Some(fb)) = (&mut self.framebuffer, fb)
+            && view.update(fb)
         {
-            cirsium::widgets::stage_bgra(fb, &mut self.framebuffer_staged);
-            self.framebuffer_dirty = true;
             return;
         }
 
-        Self::drop_grid_image(cx, self.framebuffer.take().and_then(|view| view.image));
         self.framebuffer = fb.map(Into::into);
-        self.framebuffer_dirty = false;
     }
 
     pub(super) fn should_refresh(&self, panel: &PanelDescriptor, live: bool) -> bool {
@@ -225,7 +221,7 @@ impl Debugger {
         }
 
         if self.wants_refresh(live, |kind| matches!(kind, PanelKind::Framebuffer)) {
-            self.refresh_framebuffer(cx);
+            self.refresh_framebuffer();
         }
 
         if self.wants_refresh(live, |kind| matches!(kind, PanelKind::Memory)) {
@@ -412,7 +408,7 @@ impl Debugger {
         Self::toggle_in(&mut self.collapsed, id.clone());
 
         if !self.collapsed.contains(&id) {
-            self.refresh_framebuffer(cx);
+            self.refresh_framebuffer();
             self.refresh_video_panes(false, cx);
             self.refresh_generic_panels(false);
         }

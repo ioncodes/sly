@@ -12,6 +12,7 @@ use scripting::{LuaToken, tokenize_lua};
 
 use self::complete::Suggestions;
 use self::element::EditorElement;
+use crate::components::line_geometry::LineGeometry;
 use crate::components::{text_offsets, vertical_scroll_area};
 use crate::theme::Theme;
 
@@ -615,7 +616,10 @@ impl CodeEditor {
         let range = self.line_range(line);
         let x = local.x - self.layout.gutter;
         match self.layout.lines.get(&line) {
-            Some(shaped) => range.start + shaped.closest_index_for_x(x).min(range.len()),
+            Some(shaped) => {
+                let index = shaped.index_at(point(x, px(0.)), self.layout.line_height);
+                range.start + index.min(range.len())
+            }
             None => range.start,
         }
     }

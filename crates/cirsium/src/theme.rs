@@ -121,14 +121,11 @@ impl Theme {
         self.accent = accent;
         self.accent_soft = with_alpha(accent, 0.23);
         self.accent_faint = with_alpha(accent, 0.07);
-        self.accent_hover = Hsla {
-            l: (accent.l + 0.12).min(1.0),
-            ..accent
-        };
-        self.on_accent = if accent.l > 0.62 {
-            rgb(0x101014).into()
+        self.accent_hover = lighten(accent, 0.12);
+        self.on_accent = if accent.lightness > 0.62 {
+            hex(0x101014)
         } else {
-            rgb(0xffffff).into()
+            hex(0xffffff)
         };
         self.selection = with_alpha(accent, 0.30);
         self.selection_border = with_alpha(accent, 0.65);
@@ -143,55 +140,55 @@ impl Theme {
             ui_font: UI_FONT,
             mono_font: MONO_FONT,
 
-            bg_root: rgb(0x000000).into(),
-            bg_panel: rgb(0x0a0a0c).into(),
-            bg_panel_alt: rgb(0x111114).into(),
-            bg_header: rgb(0x0e0e11).into(),
-            border_subtle: rgb(0x232328).into(),
-            border_strong: rgb(0x3a3a42).into(),
+            bg_root: hex(0x000000),
+            bg_panel: hex(0x0a0a0c),
+            bg_panel_alt: hex(0x111114),
+            bg_header: hex(0x0e0e11),
+            border_subtle: hex(0x232328),
+            border_strong: hex(0x3a3a42),
 
-            text_primary: rgb(0xf0f0f3).into(),
-            text_secondary: rgb(0xababb2).into(),
-            text_muted: rgb(0x6c6c74).into(),
-            text_dim: rgb(0x4a4a52).into(),
+            text_primary: hex(0xf0f0f3),
+            text_secondary: hex(0xababb2),
+            text_muted: hex(0x6c6c74),
+            text_dim: hex(0x4a4a52),
 
-            accent: rgb(0xa55cff).into(),
-            accent_soft: rgba(0xa55cff3a).into(),
-            accent_faint: rgba(0xa55cff12).into(),
-            accent_hover: rgb(0xb985ff).into(),
-            on_accent: rgb(0xffffff).into(),
-            selection: rgb(0x4a2f7a).into(),
-            selection_border: rgb(0x7d5bb8).into(),
-            logo: rgb(0xa55cff).into(),
+            accent: hex(0xa55cff),
+            accent_soft: hexa(0xa55cff3a),
+            accent_faint: hexa(0xa55cff12),
+            accent_hover: hex(0xb985ff),
+            on_accent: hex(0xffffff),
+            selection: hex(0x4a2f7a),
+            selection_border: hex(0x7d5bb8),
+            logo: hex(0xa55cff),
 
-            success: rgb(0x6cc98a).into(),
-            warning: rgb(0xd9b46a).into(),
-            danger: rgb(0xee8a86).into(),
-            danger_strong: rgb(0xe5484d).into(),
-            info: rgb(0x7bb8f4).into(),
+            success: hex(0x6cc98a),
+            warning: hex(0xd9b46a),
+            danger: hex(0xee8a86),
+            danger_strong: hex(0xe5484d),
+            info: hex(0x7bb8f4),
 
-            read_fill: rgb(0x1d3a5c).into(),
-            read_border: rgb(0x3f6fa8).into(),
-            write_fill: rgb(0x1e3d2b).into(),
-            write_border: rgb(0x4f9e6a).into(),
-            exec_fill: rgb(0x5c2329).into(),
-            exec_border: rgb(0xa84f54).into(),
+            read_fill: hex(0x1d3a5c),
+            read_border: hex(0x3f6fa8),
+            write_fill: hex(0x1e3d2b),
+            write_border: hex(0x4f9e6a),
+            exec_fill: hex(0x5c2329),
+            exec_border: hex(0xa84f54),
 
-            code_opcode: rgb(0x86c98f).into(),
-            code_address: rgb(0x86868f).into(),
-            code_comment: rgb(0x64645f).into(),
-            code_number: rgb(0xd7b87e).into(),
+            code_opcode: hex(0x86c98f),
+            code_address: hex(0x86868f),
+            code_comment: hex(0x64645f),
+            code_number: hex(0xd7b87e),
 
-            code_flow: rgb(0xe6a0c0).into(),
-            code_memory: rgb(0x8fbde6).into(),
-            code_alu: rgb(0xe6b58f).into(),
-            code_transfer: rgb(0xc6a8ec).into(),
-            code_system: rgb(0x8fe0cf).into(),
-            code_register: rgb(0x7fd4d4).into(),
-            code_immediate: rgb(0xa79bcf).into(),
-            code_sigil: rgb(0x9c8a5e).into(),
-            code_symbol: rgb(0xf0a995).into(),
-            code_punctuation: rgb(0x6c6c74).into(),
+            code_flow: hex(0xe6a0c0),
+            code_memory: hex(0x8fbde6),
+            code_alu: hex(0xe6b58f),
+            code_transfer: hex(0xc6a8ec),
+            code_system: hex(0x8fe0cf),
+            code_register: hex(0x7fd4d4),
+            code_immediate: hex(0xa79bcf),
+            code_sigil: hex(0x9c8a5e),
+            code_symbol: hex(0xf0a995),
+            code_punctuation: hex(0x6c6c74),
         }
     }
 
@@ -202,61 +199,74 @@ impl Theme {
             ui_font: UI_FONT,
             mono_font: MONO_FONT,
 
-            bg_root: rgb(0xeaeaec).into(),
-            bg_panel: rgb(0xfbfbfc).into(),
-            bg_panel_alt: rgb(0xf1f1f3).into(),
-            bg_header: rgb(0xf3f3f5).into(),
-            border_subtle: rgb(0xdadade).into(),
-            border_strong: rgb(0xbcbcc2).into(),
+            bg_root: hex(0xeaeaec),
+            bg_panel: hex(0xfbfbfc),
+            bg_panel_alt: hex(0xf1f1f3),
+            bg_header: hex(0xf3f3f5),
+            border_subtle: hex(0xdadade),
+            border_strong: hex(0xbcbcc2),
 
-            text_primary: rgb(0x18181c).into(),
-            text_secondary: rgb(0x4c4c54).into(),
-            text_muted: rgb(0x8a8a92).into(),
-            text_dim: rgb(0xa6a6ae).into(),
+            text_primary: hex(0x18181c),
+            text_secondary: hex(0x4c4c54),
+            text_muted: hex(0x8a8a92),
+            text_dim: hex(0xa6a6ae),
 
-            accent: rgb(0x7c3aed).into(),
-            accent_soft: rgba(0x7c3aed26).into(),
-            accent_faint: rgba(0x7c3aed12).into(),
-            accent_hover: rgb(0x6a28d9).into(),
-            on_accent: rgb(0xffffff).into(),
-            selection: rgb(0xcdb4f5).into(),
-            selection_border: rgb(0x9d7fd0).into(),
-            logo: rgb(0x7c3aed).into(),
+            accent: hex(0x7c3aed),
+            accent_soft: hexa(0x7c3aed26),
+            accent_faint: hexa(0x7c3aed12),
+            accent_hover: hex(0x6a28d9),
+            on_accent: hex(0xffffff),
+            selection: hex(0xcdb4f5),
+            selection_border: hex(0x9d7fd0),
+            logo: hex(0x7c3aed),
 
-            success: rgb(0x1f9d57).into(),
-            warning: rgb(0xb5800f).into(),
-            danger: rgb(0xd23b39).into(),
-            danger_strong: rgb(0xdc2626).into(),
-            info: rgb(0x356fa8).into(),
+            success: hex(0x1f9d57),
+            warning: hex(0xb5800f),
+            danger: hex(0xd23b39),
+            danger_strong: hex(0xdc2626),
+            info: hex(0x356fa8),
 
-            read_fill: rgb(0xc3dbf5).into(),
-            read_border: rgb(0x5a8fc0).into(),
-            write_fill: rgb(0xc8ecd0).into(),
-            write_border: rgb(0x4f9e63).into(),
-            exec_fill: rgb(0xf3c7c4).into(),
-            exec_border: rgb(0xc2706c).into(),
+            read_fill: hex(0xc3dbf5),
+            read_border: hex(0x5a8fc0),
+            write_fill: hex(0xc8ecd0),
+            write_border: hex(0x4f9e63),
+            exec_fill: hex(0xf3c7c4),
+            exec_border: hex(0xc2706c),
 
-            code_opcode: rgb(0x1f8a3b).into(),
-            code_address: rgb(0x6c6c74).into(),
-            code_comment: rgb(0x82826a).into(),
-            code_number: rgb(0x9a5a12).into(),
+            code_opcode: hex(0x1f8a3b),
+            code_address: hex(0x6c6c74),
+            code_comment: hex(0x82826a),
+            code_number: hex(0x9a5a12),
 
-            code_flow: rgb(0xb83a78).into(),
-            code_memory: rgb(0x2f6fb0).into(),
-            code_alu: rgb(0xb5651f).into(),
-            code_transfer: rgb(0x7a3ac4).into(),
-            code_system: rgb(0x12806a).into(),
-            code_register: rgb(0x1f8a8a).into(),
-            code_immediate: rgb(0x5f4fa0).into(),
-            code_sigil: rgb(0x8a7340).into(),
-            code_symbol: rgb(0xc26a4f).into(),
-            code_punctuation: rgb(0x8a8a92).into(),
+            code_flow: hex(0xb83a78),
+            code_memory: hex(0x2f6fb0),
+            code_alu: hex(0xb5651f),
+            code_transfer: hex(0x7a3ac4),
+            code_system: hex(0x12806a),
+            code_register: hex(0x1f8a8a),
+            code_immediate: hex(0x5f4fa0),
+            code_sigil: hex(0x8a7340),
+            code_symbol: hex(0xc26a4f),
+            code_punctuation: hex(0x8a8a92),
         }
     }
 }
 
+pub fn hex(color: u32) -> Hsla {
+    gpui::rgb_to_hsla(rgb(color))
+}
+
+pub fn hexa(color: u32) -> Hsla {
+    gpui::rgb_to_hsla(rgba(color))
+}
+
 pub fn with_alpha(mut color: Hsla, alpha: f32) -> Hsla {
-    color.a = alpha;
+    color.alpha = alpha;
+    color
+}
+
+pub fn lighten(mut color: Hsla, amount: f32) -> Hsla {
+    color.lightness = (color.lightness + amount).min(1.0);
     color
 }
 

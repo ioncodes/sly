@@ -41,7 +41,7 @@ pub(super) fn paint_edges(
             EdgeKind::Normal => theme.accent,
         };
         let (color, width, head_len, head_w) = if hovered == Some(ei) {
-            (brighten(base), 2.75, 10., 5.)
+            (crate::theme::lighten(base, 0.18), 2.75, 10., 5.)
         } else {
             (base, 1.5, 8., 4.)
         };
@@ -72,13 +72,6 @@ pub(super) fn paint_edges(
         if let Ok(path) = head.build() {
             window.paint_path(path, color);
         }
-    }
-}
-
-fn brighten(c: Hsla) -> Hsla {
-    Hsla {
-        l: (c.l + 0.18).min(1.),
-        ..c
     }
 }
 

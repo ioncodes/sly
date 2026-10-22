@@ -6,6 +6,7 @@ use gpui::{
 };
 
 use super::TextInput;
+use crate::components::line_geometry::LineGeometry;
 use crate::theme::Theme;
 
 pub(super) struct TextElement {
@@ -15,7 +16,7 @@ pub(super) struct TextElement {
 pub(super) struct PrepaintState {
     line: Option<ShapedLine>,
     cursor: Option<PaintQuad>,
-    selection: Option<PaintQuad>,
+    selection: Vec<PaintQuad>,
 }
 
 impl IntoElement for TextElement {
@@ -83,6 +84,7 @@ impl Element for TextElement {
             background_color: None,
             underline: None,
             strikethrough: None,
+            letter_spacing: None,
         };
         let runs = if let Some(marked_range) = input.marked_range.as_ref() {
             vec![
@@ -114,12 +116,15 @@ impl Element for TextElement {
         let font_size = style.font_size.to_pixels(window.rem_size());
         let line = window
             .text_system()
-            .shape_line(display_text, font_size, &runs, None);
+            .shape_line(display_text, font_size, &runs);
 
-        let cursor_pos = line.x_for_index(cursor);
+        let cursor_pos = line
+            .caret_x(cursor, bounds.size.height)
+            .unwrap_or(line.width);
+
         let (selection, cursor) = if selected_range.is_empty() {
             (
-                None,
+                Vec::new(),
                 Some(fill(
                     Bounds::new(
                         point(bounds.left() + cursor_pos, bounds.top()),
@@ -130,19 +135,14 @@ impl Element for TextElement {
             )
         } else {
             (
-                Some(fill(
-                    Bounds::from_corners(
-                        point(
-                            bounds.left() + line.x_for_index(selected_range.start),
-                            bounds.top(),
-                        ),
-                        point(
-                            bounds.left() + line.x_for_index(selected_range.end),
-                            bounds.bottom(),
-                        ),
-                    ),
-                    theme.accent_soft,
-                )),
+                line.platform_layout
+                    .selection_bounds(selected_range, bounds.size.height)
+                    .into_iter()
+                    .map(|mut selection| {
+                        selection.origin += bounds.origin;
+                        fill(selection, theme.accent_soft)
+                    })
+                    .collect(),
                 None,
             )
         };
@@ -170,7 +170,7 @@ impl Element for TextElement {
             ElementInputHandler::new(bounds, self.input.clone()),
             cx,
         );
-        if let Some(selection) = prepaint.selection.take() {
+        for selection in prepaint.selection.drain(..) {
             window.paint_quad(selection)
         }
 

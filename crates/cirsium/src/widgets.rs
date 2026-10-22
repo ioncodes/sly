@@ -37,7 +37,7 @@ pub use disassembly::{
     ViewMode,
 };
 
-pub use framebuffer::{FramebufferView, FramebufferWidget, stage_bgra};
+pub use framebuffer::{FramebufferView, FramebufferWidget};
 pub use grid::{GridContent, GridHover, GridOverlay, GridPanel, GridWindowOverlay, VideoResource};
 
 pub use log::{LogEntry, LogLevel, LogView, LogWidget, short_target};

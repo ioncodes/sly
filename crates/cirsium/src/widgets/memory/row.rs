@@ -1,5 +1,9 @@
 use gpui::prelude::*;
-use gpui::{Div, FontWeight, Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, div, px};
+use gpui::{
+    BorderStyle, Bounds, CursorStyle, Div, Edges, FontWeight, HitboxBehavior, Hsla, MouseButton,
+    MouseDownEvent, MouseMoveEvent, Pixels, Point, SharedString, TextAlign, TextRun, canvas, div,
+    point, px, quad, size,
+};
 
 use crate::diff::{Highlight, highlight_fill};
 use crate::theme::Theme;
@@ -58,8 +62,8 @@ pub(super) fn mem_row(
         .map(|(i, cell)| self::cell_fill(cell, in_selection(row.addr + i as u32)))
         .collect();
 
-    let mut hex = div().flex().items_center().flex_none();
-    let mut ascii = div().flex().items_center().flex_none();
+    let mut hex = Vec::with_capacity(row.cells.len());
+    let mut ascii = Vec::with_capacity(row.cells.len());
 
     let stride = bytes_per_row as u32;
     for (i, cell) in row.cells.iter().enumerate() {
@@ -100,50 +104,44 @@ pub(super) fn mem_row(
             Fill::None => (true, true),
         };
 
-        if i == half {
-            hex = hex.child(div().w(px(GROUP_GAP)).flex_none());
-        }
+        let style = if dashed {
+            BorderStyle::Dashed
+        } else {
+            BorderStyle::Solid
+        };
 
-        let hex_cell = self::byte_cell(
-            self::fill_cell(
-                theme,
-                self::cell_box(HEX_CELL_WIDTH),
-                text,
-                colors,
-                hex_left,
-                hex_right,
-                top,
-                bottom,
-                dashed,
-            )
-            .child(format!("{:02X}", cell.value)),
-            addr,
-            on_byte_down.clone(),
-            on_byte_drag.clone(),
-            on_context.clone(),
-        );
-        hex = hex.child(hex_cell);
+        let fill = |left: bool, right: bool| {
+            colors.map(|(background, border)| CellFill {
+                background,
+                border,
+                style,
+                edges: Edges {
+                    left: self::edge(left),
+                    right: self::edge(right),
+                    top: self::edge(top),
+                    bottom: self::edge(bottom),
+                },
+            })
+        };
 
-        let ascii_cell = self::byte_cell(
-            self::fill_cell(
-                theme,
-                self::cell_box(ASCII_CELL_WIDTH),
-                text,
-                colors,
-                ascii_left,
-                ascii_right,
-                top,
-                bottom,
-                dashed,
-            )
-            .child(ascii_glyph(cell.value).to_string()),
-            addr,
-            on_byte_down.clone(),
-            on_byte_drag.clone(),
-            on_context.clone(),
-        );
-        ascii = ascii.child(ascii_cell);
+        hex.push(ByteCell {
+            text: format!("{:02X}", cell.value).into(),
+            color: text,
+            fill: fill(hex_left, hex_right),
+        });
+
+        ascii.push(ByteCell {
+            text: ascii_glyph(cell.value).to_string().into(),
+            color: text,
+            fill: fill(ascii_left, ascii_right),
+        });
     }
+
+    let callbacks = StripCallbacks {
+        on_byte_down,
+        on_byte_drag,
+        on_context,
+    };
 
     div()
         .flex()
@@ -152,9 +150,23 @@ pub(super) fn mem_row(
         .h(px(ROW_HEIGHT))
         .px_1()
         .child(address)
-        .child(hex)
+        .child(self::byte_strip(
+            theme,
+            row.addr,
+            hex,
+            HEX_CELL_WIDTH,
+            Some(half),
+            callbacks.clone(),
+        ))
         .child(div().w(px(HEX_ASCII_GAP)).flex_none())
-        .child(ascii)
+        .child(self::byte_strip(
+            theme,
+            row.addr,
+            ascii,
+            ASCII_CELL_WIDTH,
+            None,
+            callbacks,
+        ))
 }
 
 pub(super) fn column_header(theme: &Theme, bytes_per_row: usize) -> Div {
@@ -248,58 +260,183 @@ fn fill_colors(theme: &Theme, fill: Fill) -> Option<(Hsla, Hsla)> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn fill_cell(
-    theme: &Theme,
-    base: Div,
-    text: Hsla,
-    fill: Option<(Hsla, Hsla)>,
-    left: bool,
-    right: bool,
-    top: bool,
-    bottom: bool,
-    dashed: bool,
-) -> Div {
-    let mut cell = base.font_family(theme.mono_font).text_sm().text_color(text);
-    if let Some((bg, border)) = fill {
-        cell = cell
-            .when(dashed, |d| d.border_dashed())
-            .bg(bg)
-            .border_color(border)
-            .when(top, |d| d.border_t_1())
-            .when(bottom, |d| d.border_b_1())
-            .when(left, |d| d.border_l_1())
-            .when(right, |d| d.border_r_1());
-    }
-    cell
+struct ByteCell {
+    text: SharedString,
+    color: Hsla,
+    fill: Option<CellFill>,
 }
 
-fn byte_cell(
-    cell: Div,
-    addr: u32,
+#[derive(Clone, Copy)]
+struct CellFill {
+    background: Hsla,
+    border: Hsla,
+    style: BorderStyle,
+    edges: Edges<Pixels>,
+}
+
+#[derive(Clone)]
+struct StripCallbacks {
     on_byte_down: Option<ByteDownCallback>,
     on_byte_drag: Option<ByteDragCallback>,
     on_context: Option<ContextCallback>,
+}
+
+#[derive(Clone, Copy)]
+struct StripLayout {
+    cell_width: f32,
+    group_break: Option<usize>,
+    len: usize,
+}
+
+impl StripLayout {
+    fn cell_x(self, index: usize) -> f32 {
+        let gap = if self.group_break.is_some_and(|half| index >= half) {
+            GROUP_GAP
+        } else {
+            0.
+        };
+
+        (index as f32 * self.cell_width) + gap
+    }
+
+    fn cell_at(self, x: f32) -> Option<usize> {
+        (0..self.len).find(|&index| {
+            let left = self.cell_x(index);
+            x >= left && x < left + self.cell_width
+        })
+    }
+}
+
+fn edge(visible: bool) -> Pixels {
+    px(if visible { 1. } else { 0. })
+}
+
+fn byte_strip(
+    theme: &Theme,
+    base: u32,
+    cells: Vec<ByteCell>,
+    cell_width: f32,
+    group_break: Option<usize>,
+    callbacks: StripCallbacks,
 ) -> Div {
-    let mut cell = cell.cursor_pointer();
+    let layout = StripLayout {
+        cell_width,
+        group_break,
+        len: cells.len(),
+    };
 
-    if let Some(down) = on_byte_down {
-        cell = cell.on_mouse_down(MouseButton::Left, move |e: &MouseDownEvent, window, cx| {
-            down(addr, e.modifiers.shift, window, cx);
-        });
-    }
-    if let Some(drag) = on_byte_drag {
-        cell = cell.on_mouse_move(move |e: &MouseMoveEvent, window, cx| {
-            if e.dragging() {
-                drag(addr, window, cx);
-            }
-        });
-    }
-    if let Some(context) = on_context {
-        cell = cell.on_mouse_down(MouseButton::Right, move |e: &MouseDownEvent, window, cx| {
-            context(addr, e.position, window, cx);
-        });
-    }
+    div()
+        .flex()
+        .flex_none()
+        .w(px(layout.cell_x(layout.len)))
+        .h(px(ROW_HEIGHT))
+        .font_family(theme.mono_font)
+        .text_sm()
+        .child(
+            canvas(
+                move |bounds, window, _| {
+                    let style = window.text_style();
+                    let font = style.font();
+                    let font_size = style.font_size.to_pixels(window.rem_size());
+                    let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
 
-    cell
+                    let cells = cells
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, cell)| {
+                            let origin = bounds.origin + point(px(layout.cell_x(index)), px(0.));
+                            let bounds = Bounds::new(origin, size(px(cell_width), px(ROW_HEIGHT)));
+
+                            let run = TextRun {
+                                len: cell.text.len(),
+                                font: font.clone(),
+                                color: cell.color,
+                                background_color: None,
+                                underline: None,
+                                strikethrough: None,
+                                letter_spacing: None,
+                            };
+                            let line =
+                                window
+                                    .text_system()
+                                    .shape_line(cell.text, font_size, &[run]);
+
+                            (cell.fill, bounds, line)
+                        })
+                        .collect::<Vec<_>>();
+
+                    (hitbox, window.line_height(), cells)
+                },
+                move |strip, (hitbox, line_height, cells), window, cx| {
+                    for (fill, bounds, line) in cells {
+                        let mut edges = Edges::default();
+                        if let Some(fill) = fill {
+                            window.paint_quad(quad(
+                                bounds,
+                                px(0.),
+                                fill.background,
+                                fill.edges,
+                                fill.border,
+                                fill.style,
+                            ));
+                            edges = fill.edges;
+                        }
+
+                        let origin = bounds.origin
+                            + point(
+                                (bounds.size.width - line.width + edges.left - edges.right) / 2.,
+                                (bounds.size.height - line_height + edges.top - edges.bottom) / 2.,
+                            );
+                        let _ = line.paint(origin, line_height, TextAlign::Left, None, window, cx);
+                    }
+
+                    window.set_cursor_style(CursorStyle::PointingHand, &hitbox);
+
+                    let addr_at = move |position: Point<Pixels>| {
+                        layout
+                            .cell_at(f32::from(position.x - strip.origin.x))
+                            .map(|index| base + index as u32)
+                    };
+
+                    if let Some(down) = callbacks.on_byte_down {
+                        let hitbox = hitbox.clone();
+                        window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
+                            if phase.bubble()
+                                && event.button == MouseButton::Left
+                                && hitbox.is_hovered(window)
+                                && let Some(addr) = addr_at(event.position)
+                            {
+                                down(addr, event.modifiers.shift, window, cx);
+                            }
+                        });
+                    }
+
+                    if let Some(context) = callbacks.on_context {
+                        let hitbox = hitbox.clone();
+                        window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
+                            if phase.bubble()
+                                && event.button == MouseButton::Right
+                                && hitbox.is_hovered(window)
+                                && let Some(addr) = addr_at(event.position)
+                            {
+                                context(addr, event.position, window, cx);
+                            }
+                        });
+                    }
+
+                    if let Some(drag) = callbacks.on_byte_drag {
+                        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                            if phase.bubble()
+                                && event.dragging()
+                                && hitbox.is_hovered(window)
+                                && let Some(addr) = addr_at(event.position)
+                            {
+                                drag(addr, window, cx);
+                            }
+                        });
+                    }
+                },
+            )
+            .size_full(),
+        )
 }

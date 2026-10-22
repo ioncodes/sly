@@ -109,9 +109,7 @@ fn run(initial: Option<(Box<dyn DebugCore>, cover::ArtQuery, storage::GameId)>, 
         ))));
 
         #[cfg(target_family = "wasm")]
-        cx.set_http_client(Arc::new(cover::ArtAuthClient(Arc::new(unsafe {
-            gpui_web::FetchHttpClient::new()
-        }))));
+        cx.set_http_client(Arc::new(cover::ArtAuthClient));
 
         set_theme(cx, Theme::new(ThemeMode::Dark));
 
@@ -129,18 +127,18 @@ fn run(initial: Option<(Box<dyn DebugCore>, cover::ArtQuery, storage::GameId)>, 
 }
 
 fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
-    WindowOptions {
-        window_bounds: Some(WindowBounds::Windowed(bounds)),
-        #[cfg(not(target_family = "wasm"))]
-        titlebar: Some(gpui::TitlebarOptions {
+    let options = WindowOptions::new().window_bounds(Some(WindowBounds::Windowed(bounds)));
+
+    #[cfg(not(target_family = "wasm"))]
+    let options = options
+        .titlebar(Some(gpui::TitlebarOptions {
             title: Some("Sly Debugger".into()),
             appears_transparent: true,
             traffic_light_position: Some(cirsium::components::traffic_light_position()),
-        }),
-        #[cfg(not(target_family = "wasm"))]
-        window_decorations: Some(gpui::WindowDecorations::Client),
-        ..Default::default()
-    }
+        }))
+        .window_decorations(Some(gpui::WindowDecorations::Client));
+
+    options
 }
 
 // ---------------------------------------------------------------------------

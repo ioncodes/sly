@@ -69,7 +69,7 @@ impl Debugger {
             .find(|w| w.id.as_ref() == self.workspace.as_ref())
             .and_then(|w| w.mmio_group.clone());
         let mmio = MmioWidget::new(self.mmio_view.clone())
-            .scroll(self.scroll_for(MmioWidget::ID))
+            .scroll(self.mmio_scroll.clone())
             .priority(mmio_priority.map(SharedString::from))
             .expanded(self.expanded_set(MmioWidget::ID))
             .collapsed(self.is_collapsed(MmioWidget::ID))

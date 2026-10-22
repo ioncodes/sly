@@ -145,7 +145,7 @@ impl Element for HeaderOptions {
                     if let Some(previous) = state.read(cx).previous_focus.clone() {
                         window.focus(&previous, cx);
                     } else {
-                        window.blur();
+                        window.blur(cx);
                     }
                 }
             }

@@ -2,6 +2,7 @@ mod code_editor;
 mod combobox;
 mod copyable;
 mod header_options;
+mod line_geometry;
 mod menu;
 mod panel;
 mod primitives;

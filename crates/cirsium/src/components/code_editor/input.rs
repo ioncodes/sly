@@ -109,13 +109,11 @@ impl EntityInputHandler for CodeEditor {
         let top = bounds.top() + self.layout.line_height * line as f32;
         let left = bounds.left() + self.layout.gutter;
 
-        Some(Bounds::from_corners(
-            point(left + shaped.x_for_index(range.start - start), top),
-            point(
-                left + shaped.x_for_index(range.end.saturating_sub(start)),
-                top + self.layout.line_height,
-            ),
-        ))
+        let local_range = range.start - start..range.end.saturating_sub(start).min(shaped.len());
+        let mut geometry = shaped.range_bounds(local_range, self.layout.line_height)?;
+
+        geometry.origin += point(left, top);
+        Some(geometry)
     }
 
     fn character_index_for_point(

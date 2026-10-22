@@ -34,7 +34,7 @@ use gpui::prelude::*;
 use gpui::{
     AnyElement, App, ClickEvent, ClipboardItem, Context, Entity, FocusHandle, KeyDownEvent,
     KeyUpEvent, MouseDownEvent, Pixels, Point, RenderImage, ScrollHandle, SharedString, Size, Task,
-    Window, div, px, rgb,
+    UniformListScrollHandle, Window, div, px, rgb,
 };
 use web_time::Instant;
 use workspace_model::{PanelDescriptor, PanelKind, RefreshPolicy, WorkspaceIcon};
@@ -182,6 +182,7 @@ pub(crate) struct Debugger {
     savestates_view: Arc<cirsium::widgets::SavestatesView>,
     cartridge: Arc<CartridgeView>,
     mmio_view: Arc<MmioView>,
+    mmio_scroll: UniformListScrollHandle,
     palette_view: Arc<PaletteView>,
     palette_selected: Option<(usize, usize)>,
     structured_views: HashMap<SharedString, Arc<StructuredView>>,
@@ -204,8 +205,6 @@ pub(crate) struct Debugger {
     sprites: Option<SpritesView>,
     sprites_ui: GridState,
     framebuffer: Option<FramebufferView>,
-    framebuffer_staged: Vec<u8>,
-    framebuffer_dirty: bool,
     palette_key: Option<VideoCacheKey>,
     tileset_key: Option<VideoCacheKey>,
     tilemap_key: Option<VideoCacheKey>,
@@ -378,6 +377,7 @@ impl Debugger {
         let mut debugger = Self {
             cartridge: Arc::new(target.cartridge().clone().into()),
             mmio_view: Arc::new(target.mmio_view().into()),
+            mmio_scroll: UniformListScrollHandle::new(),
             palette_view: Arc::new(PaletteView::default()),
             palette_selected: None,
             structured_views: HashMap::new(),
@@ -403,8 +403,6 @@ impl Debugger {
             sprites: None,
             sprites_ui: GridState::default(),
             framebuffer: target.software_frame().map(Into::into),
-            framebuffer_staged: Vec::new(),
-            framebuffer_dirty: false,
             palette_key: None,
             tileset_key: None,
             tilemap_key: None,

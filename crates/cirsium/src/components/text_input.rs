@@ -4,11 +4,12 @@ use gpui::prelude::*;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, EntityInputHandler, EventEmitter,
     FocusHandle, Focusable, KeyBinding, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    Pixels, Point, ShapedLine, SharedString, UTF16Selection, Window, actions, div, point, px,
+    Pixels, Point, ShapedLine, SharedString, UTF16Selection, Window, actions, div, px,
 };
 
 use self::element::TextElement;
 use super::CONTROL_HEIGHT;
+use crate::components::line_geometry::LineGeometry;
 use crate::components::text_offsets;
 use crate::theme::Theme;
 
@@ -291,7 +292,7 @@ impl TextInput {
             return self.content.len();
         }
 
-        line.closest_index_for_x(position.x - bounds.left())
+        line.index_at(position - bounds.origin, bounds.size.height)
     }
 
     fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
@@ -377,7 +378,7 @@ impl Render for TextInput {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
-            .on_mouse_down_out(|_, window, _| window.blur())
+            .on_mouse_down_out(|_, window, cx| window.blur(cx))
             .cursor(CursorStyle::IBeam)
             .flex()
             .flex_1()
