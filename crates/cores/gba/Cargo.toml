@@ -10,7 +10,7 @@ debug = ["dep:debugger-model", "dep:workspace-model"]
 
 [dependencies]
 chapa = { version = "0.11.0", features = ["reflection"] }
-chipi-macros = "1.0.1"
+chipi-macros = "1.1.0"
 core-model = { path = "../../models/core" }
 workspace-model = { path = "../../models/workspace", optional = true }
 debugger-model = { path = "../../models/debugger", optional = true }
